@@ -5,10 +5,33 @@ function verbsOf(text) {
     .filter(Boolean);
 }
 
+// Builds one `specification[]` entry, merging form-edited fields over a
+// `raw` passthrough so fields the wizard doesn't expose (apiType, url,
+// path, developerUI, etc.) survive a round trip unchanged.
+function buildSpecEntry(spec) {
+  const raw = spec.raw ? JSON.parse(JSON.stringify(spec.raw)) : {};
+  const out = { ...raw };
+  const versionValue = spec.version
+    ? (isNaN(spec.version) ? spec.version.trim() : Number(spec.version))
+    : undefined;
+  if (versionValue !== undefined) out.version = versionValue;
+  else delete out.version;
+
+  const resources = (spec.resources || [])
+    .filter((r) => r.name && r.name.trim())
+    .map((r) => ({ [r.name.trim()]: verbsOf(r.verbs) }));
+  if (resources.length) out.resources = resources;
+  else delete out.resources;
+
+  return out;
+}
+
 // Builds an API entry, merging form-edited fields over a `raw` passthrough
 // (the original entry, when editing an existing component) so fields the
-// wizard doesn't expose (path, developerUI, implementation, apiType, extra
-// specification versions) survive a round trip unchanged.
+// wizard doesn't expose (path, developerUI, implementation, apiType)
+// survive a round trip unchanged. `specifications` holds one row per
+// version - each managed and saved independently, since different versions
+// of the same API can expose entirely different resources.
 function buildApiEntry(entry) {
   const raw = entry.raw ? JSON.parse(JSON.stringify(entry.raw)) : {};
   const out = {
@@ -20,27 +43,13 @@ function buildApiEntry(entry) {
   else delete out.apiSDO;
   if (entry.name) out.name = entry.name.trim();
 
-  const resources = (entry.resources || [])
-    .filter((r) => r.name && r.name.trim())
-    .map((r) => ({ [r.name.trim()]: verbsOf(r.verbs) }));
+  const specifications = (entry.specifications || [])
+    .filter((s) => s.version || (s.resources || []).some((r) => r.name && r.name.trim()) || Object.keys(s.raw || {}).length)
+    .map(buildSpecEntry);
 
-  const existingSpecs = Array.isArray(raw.specification) ? raw.specification.slice() : [];
-  const versionValue = entry.version
-    ? (isNaN(entry.version) ? entry.version.trim() : Number(entry.version))
-    : undefined;
+  if (specifications.length) out.specification = specifications;
+  else delete out.specification;
 
-  if (versionValue !== undefined || resources.length) {
-    const firstSpec = {
-      ...(existingSpecs[0] || {}),
-      ...(versionValue !== undefined ? { version: versionValue } : {}),
-      ...(resources.length ? { resources } : {}),
-    };
-    out.specification = [firstSpec, ...existingSpecs.slice(1)];
-  } else if (existingSpecs.length) {
-    out.specification = existingSpecs;
-  } else {
-    delete out.specification;
-  }
   return out;
 }
 

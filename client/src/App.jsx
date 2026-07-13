@@ -24,7 +24,7 @@ function blankState() {
     eTOMs: [],
     functionalFrameworkFunctions: [],
     SIDs: [],
-    exposedAPIs: [{ id: '', apiSDO: 'tmForum', required: true, version: '', name: '', resources: [] }],
+    exposedAPIs: [{ id: '', apiSDO: 'tmForum', required: true, name: '', specifications: [{ version: '', resources: [], raw: {} }] }],
     dependentAPIs: [],
     publishedEvents: [],
     subscribedEvents: [],

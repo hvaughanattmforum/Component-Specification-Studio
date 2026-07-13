@@ -12,15 +12,27 @@ function resourcesFromSpecEntry(specEntry) {
   });
 }
 
+// Each entry in `specification` is a distinct API version with its own,
+// independently managed resource/operation list - e.g. TMF620 v5 exposes a
+// "productCatalog" resource where v4 called the same thing "catalog". The
+// wizard keeps one editable row per specification entry instead of
+// collapsing them, so switching/adding a version never overwrites another.
+function parseSpecEntry(specEntry) {
+  return {
+    version: specEntry?.version !== undefined ? String(specEntry.version) : '',
+    resources: resourcesFromSpecEntry(specEntry),
+    raw: specEntry || {},
+  };
+}
+
 function parseApiEntry(entry) {
-  const firstSpec = Array.isArray(entry.specification) ? entry.specification[0] : null;
+  const specs = Array.isArray(entry.specification) ? entry.specification : [];
   return {
     id: entry.id || '',
     apiSDO: entry.apiSDO || '',
     required: !!entry.required,
     name: entry.name || '',
-    version: firstSpec?.version !== undefined ? String(firstSpec.version) : '',
-    resources: resourcesFromSpecEntry(firstSpec),
+    specifications: specs.length ? specs.map(parseSpecEntry) : [parseSpecEntry(null)],
     raw: entry,
   };
 }

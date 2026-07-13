@@ -29,24 +29,61 @@ function ResourceRows({ resources, onChange }) {
   );
 }
 
+// One card per declared specification version. Each version manages its own
+// resources independently - the same API can expose a different resource
+// shape release to release (e.g. TMF620 v5's "productCatalog" was called
+// "catalog" in v4), so resources picked for one version must never bleed
+// into another.
+function SpecVersionCard({ apiId, spec, onChange, onRemove, apiCatalog, removable }) {
+  const addResourceFromPicker = (name, verbs) => {
+    const resources = spec.resources || [];
+    const existingIdx = resources.findIndex((r) => r.name === name);
+    const verbsText = verbs.join(', ');
+    const next = existingIdx >= 0
+      ? resources.map((r, idx) => (idx === existingIdx ? { ...r, verbs: verbsText } : r))
+      : [...resources, { name, verbs: verbsText }];
+    onChange('resources', next);
+  };
+
+  return (
+    <div className="card" style={{ background: 'var(--panel-alt, rgba(255,255,255,0.03))' }}>
+      <div className="row" style={{ alignItems: 'center' }}>
+        <div className="field">
+          <label>Version</label>
+          <input type="text" value={spec.version} onChange={(e) => onChange('version', e.target.value)} placeholder="5" />
+        </div>
+        {removable && <button type="button" className="ghost" onClick={onRemove}>Remove version</button>}
+      </div>
+      <ResourcePicker
+        apiId={apiId}
+        apiVersion={spec.version}
+        apiCatalog={apiCatalog}
+        existingResources={spec.resources}
+        onAdd={addResourceFromPicker}
+      />
+      <ResourceRows resources={spec.resources} onChange={(v) => onChange('resources', v)} />
+    </div>
+  );
+}
+
 export default function ApiListStep({ title, items, onChange, apiCatalog, requiredMeaning }) {
   const update = (i, field, value) => {
     const next = items.slice();
     next[i] = { ...next[i], [field]: value };
     onChange(next);
   };
-  const add = () => onChange([...items, { id: '', apiSDO: 'tmForum', required: false, version: '', name: '', resources: [] }]);
+  const add = () => onChange([...items, {
+    id: '', apiSDO: 'tmForum', required: false, name: '', specifications: [{ version: '', resources: [], raw: {} }],
+  }]);
   const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
 
-  const addResourceFromPicker = (i, name, verbs) => {
-    const resources = items[i].resources || [];
-    const existingIdx = resources.findIndex((r) => r.name === name);
-    const verbsText = verbs.join(', ');
-    const next = existingIdx >= 0
-      ? resources.map((r, idx) => (idx === existingIdx ? { ...r, verbs: verbsText } : r))
-      : [...resources, { name, verbs: verbsText }];
-    update(i, 'resources', next);
+  const updateSpec = (i, specIdx, field, value) => {
+    const specs = items[i].specifications.slice();
+    specs[specIdx] = { ...specs[specIdx], [field]: value };
+    update(i, 'specifications', specs);
   };
+  const addSpec = (i) => update(i, 'specifications', [...items[i].specifications, { version: '', resources: [], raw: {} }]);
+  const removeSpec = (i, specIdx) => update(i, 'specifications', items[i].specifications.filter((_, idx) => idx !== specIdx));
 
   return (
     <div className="panel">
@@ -70,10 +107,6 @@ export default function ApiListStep({ title, items, onChange, apiCatalog, requir
                 <label>apiSDO</label>
                 <input type="text" value={item.apiSDO} onChange={(e) => update(i, 'apiSDO', e.target.value)} />
               </div>
-              <div className="field">
-                <label>Specification version</label>
-                <input type="text" value={item.version} onChange={(e) => update(i, 'version', e.target.value)} placeholder="5" />
-              </div>
             </div>
             <div className="checkbox-row field">
               <input
@@ -84,14 +117,24 @@ export default function ApiListStep({ title, items, onChange, apiCatalog, requir
               />
               <label htmlFor={`required-${title}-${i}`} style={{ marginBottom: 0 }}>{requiredMeaning}</label>
             </div>
-            <ResourcePicker
-              apiId={item.id}
-              apiVersion={item.version}
-              apiCatalog={apiCatalog}
-              existingResources={item.resources}
-              onAdd={(name, verbs) => addResourceFromPicker(i, name, verbs)}
-            />
-            <ResourceRows resources={item.resources} onChange={(v) => update(i, 'resources', v)} />
+
+            <div className="field">
+              <label>Specification versions <span className="hint">each version's resources are managed separately</span></label>
+              <div className="card-list">
+                {item.specifications.map((spec, specIdx) => (
+                  <SpecVersionCard
+                    key={specIdx}
+                    apiId={item.id}
+                    spec={spec}
+                    onChange={(field, value) => updateSpec(i, specIdx, field, value)}
+                    onRemove={() => removeSpec(i, specIdx)}
+                    apiCatalog={apiCatalog}
+                    removable={item.specifications.length > 1}
+                  />
+                ))}
+              </div>
+              <button type="button" className="ghost" onClick={() => addSpec(i)}>+ Add specification version</button>
+            </div>
           </div>
         ))}
         <button type="button" className="ghost" onClick={add}>+ Add API</button>

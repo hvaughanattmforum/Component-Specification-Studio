@@ -21,7 +21,7 @@ function useExposedApiEvents(exposedAPIs, apiCatalog) {
     ids.forEach((id) => {
       if (fetched.current.has(id)) return;
       const api_ = exposedAPIs.find((a) => (a.id || '').trim() === id);
-      const match = matchCatalogEntry(apiCatalog, id, api_?.version);
+      const match = matchCatalogEntry(apiCatalog, id, api_?.specifications?.[0]?.version);
       if (!match) return;
       fetched.current.add(id);
       setLoading((prev) => ({ ...prev, [id]: true }));
