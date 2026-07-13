@@ -94,7 +94,6 @@ export default function TaxonomyPicker({ title, hint, kind, value, onChange }) {
         <>
           <div className="card-list">
             {value.map((line) => {
-              const [id, token, ver] = line.split('|');
               const isSelected = selected === line;
               return (
                 <div
@@ -110,7 +109,7 @@ export default function TaxonomyPicker({ title, hint, kind, value, onChange }) {
                   }}
                   onClick={() => setSelected(isSelected ? null : line)}
                 >
-                  <span style={{ flex: 1 }}>{id} — {(token || '').replace(/_/g, ' ')} ({ver})</span>
+                  <span style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>{line}</span>
                 </div>
               );
             })}

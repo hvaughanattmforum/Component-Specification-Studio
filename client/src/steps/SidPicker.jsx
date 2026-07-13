@@ -134,7 +134,7 @@ export default function SidPicker({ value, onChange }) {
                   }}
                   onClick={() => setSelected(isSelected ? null : line)}
                 >
-                  <span style={{ flex: 1 }}>{line.split('|').join(' / ')}</span>
+                  <span style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>{line}</span>
                 </div>
               );
             })}
