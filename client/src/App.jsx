@@ -42,8 +42,10 @@ export default function App() {
   const [apiCatalog, setApiCatalog] = useState([]);
   const [repoInfo, setRepoInfo] = useState(null);
 
+  const refreshRepoInfo = () => api.health().then(setRepoInfo).catch(() => setRepoInfo({ ok: false }));
+
   useEffect(() => {
-    api.health().then(setRepoInfo).catch(() => setRepoInfo({ ok: false }));
+    refreshRepoInfo();
     api.functionalBlocks().then((r) => setFunctionalBlocks(r.functionalBlocks)).catch(() => {});
     api.apis().then((r) => setApiCatalog(r.apis)).catch(() => {});
   }, []);
@@ -97,7 +99,7 @@ export default function App() {
       </div>
 
       {view === 'setup' && (
-        <SetupGuide repoInfo={repoInfo} />
+        <SetupGuide repoInfo={repoInfo} onFrameworksRegenerated={refreshRepoInfo} />
       )}
 
       {view === 'wizard' && mode === null && (

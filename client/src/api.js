@@ -10,6 +10,12 @@ async function json(res) {
 
 export const api = {
   health: () => fetch(`${BASE}/health`).then(json),
+  getConfig: () => fetch(`${BASE}/config`).then(json),
+  setConfig: (repoRoot) => fetch(`${BASE}/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoRoot }),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   functionalBlocks: () => fetch(`${BASE}/functional-blocks`).then(json),
   apis: () => fetch(`${BASE}/apis`).then(json),
   nextId: () => fetch(`${BASE}/next-id`).then(json),
@@ -18,6 +24,8 @@ export const api = {
   // kind: 'etom' | 'sid' | 'functional-framework'. version omitted -> server's latest.
   frameworkCatalog: (kind, version) => fetch(`${BASE}/${kind}${version ? `?version=${encodeURIComponent(version)}` : ''}`).then(json),
   frameworkVersions: (kind) => fetch(`${BASE}/${kind}/versions`).then(json),
+  regenerateFrameworks: () => fetch(`${BASE}/frameworks/regenerate`, { method: 'POST' })
+    .then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   apiResources: (swaggerUrl) => fetch(`${BASE}/api-resources?swagger=${encodeURIComponent(swaggerUrl)}`).then(json),
   validate: (component) => fetch(`${BASE}/validate`, {
     method: 'POST',

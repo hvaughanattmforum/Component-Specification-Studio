@@ -19,7 +19,7 @@ console.log('Extracting installer files...');
 fs.rmSync(tempDir, { recursive: true, force: true });
 fs.mkdirSync(tempDir, { recursive: true });
 
-for (const file of ['ComponentSpecStudio.exe', 'public.zip', 'install.ps1', 'uninstall.ps1']) {
+for (const file of ['ComponentSpecStudio.exe', 'public.zip', 'scripts.zip', 'install.ps1', 'uninstall.ps1']) {
   fs.copyFileSync(path.join(payloadDir, file), path.join(tempDir, file));
 }
 
