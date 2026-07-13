@@ -9,7 +9,8 @@
     "package:win": "pkg server/dist/bundle.cjs --targets node22-win-x64 --output dist/ComponentSpecStudio.exe",
     "copy:public": "node -e \"const fs=require('fs');fs.rmSync('dist/public',{recursive:true,force:true});fs.cpSync('client/dist','dist/public',{recursive:true})\"",
     "copy:scripts": "node -e \"const fs=require('fs');fs.rmSync('dist/scripts',{recursive:true,force:true});fs.cpSync('scripts','dist/scripts',{recursive:true})\"",
-    "dist": "npm run build:client && npm run build:server && npm run package:win && npm run copy:public && npm run copy:scripts"
+    "vendor:python": "node tools/vendor-python.js",
+    "dist": "npm run build:client && npm run build:server && npm run vendor:python && npm run package:win && npm run copy:public && npm run copy:scripts"
   },
   "devDependencies": {
     "@yao-pkg/pkg": "^6.3.2",

@@ -28,6 +28,15 @@ import re
 import sys
 from pathlib import Path
 
+# The build vendors openpyxl (+ its one dependency, et-xmlfile) into this
+# vendor/ folder - see tools/vendor-python.js - so the packaged app never
+# needs the end user's Python to have openpyxl installed, or even network
+# access to pip install it. Falls back to whatever's on the interpreter's
+# own path in dev, where openpyxl is normally just pip-installed globally.
+_VENDOR_DIR = Path(__file__).resolve().parent / "vendor"
+if _VENDOR_DIR.is_dir():
+    sys.path.insert(0, str(_VENDOR_DIR))
+
 import openpyxl
 
 FRAMEWORKS_DIR = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd()

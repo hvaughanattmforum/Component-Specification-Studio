@@ -41,6 +41,10 @@ cd frameworks
 python parse_reference_data.py
 ```
 
+Only a plain Python 3 interpreter on PATH is required - `openpyxl` (the one
+package the script needs) is vendored into the app at build time (see
+`tools/vendor-python.js`), so nothing needs to be pip-installed separately.
+
 Multiple versions of the same framework can coexist (drop a newer spreadsheet in alongside the old one and re-run); the app serves the latest version by default and lets you pick an older one per-field.
 
 ## Running in development
@@ -61,6 +65,10 @@ npm install
 npm run dist
 # produces dist/ComponentSpecStudio.exe + dist/public/ - distribute both together
 ```
+
+`npm run dist` also vendors `openpyxl` into `scripts/vendor/` (via `python`/
+`python3` + pip on the *build* machine) so it ships inside `dist/scripts/` -
+end users never need to pip install anything themselves.
 
 **Windows installer** (Start Menu shortcut, registered in Add/Remove Programs with a working uninstaller, no admin rights required — installs per-user to `%LOCALAPPDATA%\Programs\ComponentSpecStudio`):
 

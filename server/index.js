@@ -432,7 +432,7 @@ app.post('/api/frameworks/regenerate', async (req, res) => {
       });
     }
   }
-  res.status(500).json({ ok: false, error: 'Could not find a Python interpreter on PATH (tried "python" and "python3"). Install Python 3 with openpyxl and ensure it\'s on PATH.' });
+  res.status(500).json({ ok: false, error: 'Could not find a Python interpreter on PATH (tried "python" and "python3"). Install Python 3 and ensure it\'s on PATH (openpyxl is bundled with the app, so no separate pip install is needed).' });
 });
 
 // Lightweight list of existing components, for the "edit existing" picker.
