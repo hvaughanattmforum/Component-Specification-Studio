@@ -2,6 +2,8 @@
 
 A local web app for creating and editing [TMForum ODA](https://www.tmforum.org/oda/) component specification YAML files (`TMFCxxx-*.yaml`) without hand-editing YAML — a guided wizard instead of a text editor.
 
+![Screenshot of the ODA Component Specification Studio start screen](docs/screenshot.png)
+
 ## Features
 
 - **Create or edit** a component spec: auto-suggests the next free `TMFCxxx` id, or load and edit any existing component (id/name locked while editing to avoid orphaning its `ComponentConformanceProfile`/`RI`/`Diagrams` folders).
