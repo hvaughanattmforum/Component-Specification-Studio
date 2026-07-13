@@ -1,0 +1,17 @@
+{
+  "name": "component-spec-editor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build/package scripts for the ODA Component Specification Studio Windows exe. The app itself lives in server/ and client/.",
+  "scripts": {
+    "build:client": "npm --prefix client run build",
+    "build:server": "esbuild server/index.js --bundle --platform=node --format=cjs --outfile=server/dist/bundle.cjs",
+    "package:win": "pkg server/dist/bundle.cjs --targets node22-win-x64 --output dist/ComponentSpecStudio.exe",
+    "copy:public": "node -e \"const fs=require('fs');fs.rmSync('dist/public',{recursive:true,force:true});fs.cpSync('client/dist','dist/public',{recursive:true})\"",
+    "dist": "npm run build:client && npm run build:server && npm run package:win && npm run copy:public"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.3.2",
+    "esbuild": "^0.24.2"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+client/dist/
+server/dist/
+installer/payload/*.exe
+installer/payload/public.zip
+*.log

@@ -1,0 +1,12 @@
+{
+  "name": "component-spec-studio-setup",
+  "version": "1.0.0",
+  "private": true,
+  "main": "installer.js",
+  "bin": "installer.js",
+  "pkg": {
+    "assets": [
+      "payload/**/*"
+    ]
+  }
+}
