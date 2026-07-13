@@ -13,6 +13,8 @@ A local web app for creating and editing [TMForum ODA](https://www.tmforum.org/o
 - **Schema validation** against the repo's `ci/component.schema.json` before saving, with inline error detail.
 - **Setup tab** inside the app itself, showing live configuration status (repo/frameworks paths, git connection, available framework versions).
 
+![eTOM picker: version selector, live search, and an existing component's populated entries](docs/feature-screenshot.png)
+
 ## Requirements
 
 The app edits an existing local checkout of the [TMForum-ODA-Component-Specification](https://github.com/tmforum-rand/TMForum-ODA-Component-Specification) repo, plus a `frameworks/` folder containing the official TMForum GB921 (eTOM), GB922 (SID), and GB1033F (Functional Framework) Excel exports. These two directories must be siblings under one shared parent — enforced at server startup, not just a convention:
