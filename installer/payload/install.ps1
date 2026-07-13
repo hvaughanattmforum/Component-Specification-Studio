@@ -13,6 +13,10 @@ $PublicDir = Join-Path $InstallDir 'public'
 if (Test-Path $PublicDir) { Remove-Item -Recurse -Force $PublicDir }
 Expand-Archive -Path (Join-Path $SourceDir 'public.zip') -DestinationPath $PublicDir -Force
 
+$ScriptsDir = Join-Path $InstallDir 'scripts'
+if (Test-Path $ScriptsDir) { Remove-Item -Recurse -Force $ScriptsDir }
+Expand-Archive -Path (Join-Path $SourceDir 'scripts.zip') -DestinationPath $ScriptsDir -Force
+
 # Start Menu shortcut
 $StartMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 $ShortcutPath = Join-Path $StartMenuDir "$AppName.lnk"

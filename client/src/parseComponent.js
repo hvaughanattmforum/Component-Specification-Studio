@@ -3,10 +3,6 @@
 // a `raw` copy of itself so buildComponent can merge form edits back over
 // fields the UI doesn't expose, instead of dropping them.
 
-function joinLines(arr) {
-  return Array.isArray(arr) ? arr.join('\n') : '';
-}
-
 function resourcesFromSpecEntry(specEntry) {
   const resources = specEntry?.resources;
   if (!Array.isArray(resources)) return [];
@@ -32,13 +28,14 @@ function parseApiEntry(entry) {
 function parseEventEntry(entry, kind) {
   return {
     name: entry.name || '',
+    apiId: '',
     hub: kind === 'published' ? (entry.hub || '') : '',
     callback: kind === 'subscribed' ? (entry['call-back'] || '') : '',
     implementation: entry.implementation || '',
     port: entry.port || '',
     specification: entry.specification || '',
     apiType: entry.apiType || '',
-    resourcesText: joinLines(entry.resources),
+    resources: Array.isArray(entry.resources) ? entry.resources : [],
     raw: entry,
   };
 }

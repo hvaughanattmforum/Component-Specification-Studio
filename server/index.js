@@ -1,31 +1,63 @@
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { execFileSync, exec } from 'child_process';
+import { execFileSync, exec, execFile } from 'child_process';
+import { promisify } from 'util';
 import yaml from 'js-yaml';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+
+const execFileAsync = promisify(execFile);
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-// Root of the Component Specification repo this app edits. Defaults to the
-// v1.1.0 checkout the user already has attached; override with REPO_ROOT env var.
+// User-level settings (currently just repoRoot), independent of any single
+// install/checkout so they survive reinstalling or moving the app itself.
+// The REPO_ROOT env var always wins over this file when set, matching the
+// existing env-var-overrides-default precedence.
+const CONFIG_PATH = path.join(os.homedir(), '.component-spec-studio', 'config.json');
+
+function readConfigFile() {
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeConfigFile(partial) {
+  fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+  const next = { ...readConfigFile(), ...partial };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2), 'utf8');
+  return next;
+}
+
+const savedConfig = readConfigFile();
+
+// Root of the Component Specification repo this app edits. Precedence:
+// REPO_ROOT env var > saved config (set via the Setup Instructions tab) >
+// the v1.1.0 checkout the original author had attached.
 const REPO_ROOT = process.env.REPO_ROOT
+  || savedConfig.repoRoot
   || 'C:\\Users\\HugoVaughan\\ClaudeCode\\TMForum-ODA-Component-Specification-v1.1.0';
+
+const REPO_ROOT_SOURCE = process.env.REPO_ROOT ? 'env' : (savedConfig.repoRoot ? 'config' : 'default');
 
 const SPECIFICATIONS_DIR = path.join(REPO_ROOT, 'specifications');
 const SCHEMA_PATH = path.join(REPO_ROOT, 'ci', 'component.schema.json');
 const API_INDEX_PATH = path.join(REPO_ROOT, 'apiIndex.json');
 
 // Reference taxonomy catalogs (eTOM/SID/Functional Framework), pre-converted
-// from the official TMForum GB921/GB922/GB1033F Excel exports by
-// frameworks/parse_reference_data.py. This lives as a sibling of REPO_ROOT
-// (both under one workspace directory) rather than inside the app itself,
-// so a fresh checkout of this app can point at anyone's existing workspace
-// layout instead of shipping the (large, license-bearing) source spreadsheets.
+// from the official TMForum GB921/GB922/GB1033 Excel exports by
+// scripts/parse_reference_data.py. The directory itself lives as a sibling of
+// REPO_ROOT (both under one workspace directory) rather than inside the app
+// itself, so a fresh checkout of this app can point at anyone's existing
+// workspace layout instead of shipping the (large, license-bearing) source
+// spreadsheets.
 const REFERENCE_DATA_DIR = process.env.FRAMEWORKS_DIR
   || path.join(path.dirname(REPO_ROOT), 'frameworks');
 
@@ -55,7 +87,7 @@ if (repoParent !== frameworksParent) {
 }
 
 // Frameworks catalogs are versioned in their filename (etom_v26.0.json,
-// sid_v26.0.json, ...), produced by frameworks/parse_reference_data.py -
+// sid_v26.0.json, ...), produced by scripts/parse_reference_data.py -
 // multiple versions of the same framework can sit side by side. A file whose
 // version couldn't be parsed from its source spreadsheet is named with a
 // literal underscore in place of the version (e.g. "etom__.json") and always
@@ -156,21 +188,45 @@ function listComponentYamlFiles() {
   }).filter((f) => fs.existsSync(f.yamlPath));
 }
 
+app.get('/api/config', (req, res) => {
+  res.json({
+    repoRoot: REPO_ROOT,
+    source: REPO_ROOT_SOURCE,
+    configPath: CONFIG_PATH,
+    envOverrideActive: Boolean(process.env.REPO_ROOT),
+  });
+});
+
+app.post('/api/config', (req, res) => {
+  const { repoRoot } = req.body;
+  if (!repoRoot || typeof repoRoot !== 'string' || !path.isAbsolute(repoRoot)) {
+    return res.status(400).json({ ok: false, error: 'repoRoot must be an absolute path' });
+  }
+  try {
+    writeConfigFile({ repoRoot });
+    res.json({
+      ok: true,
+      repoRoot,
+      envOverrideActive: Boolean(process.env.REPO_ROOT),
+      restartRequired: true,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     repoRoot: REPO_ROOT,
+    repoRootSource: REPO_ROOT_SOURCE,
     specificationsDirExists: fs.existsSync(SPECIFICATIONS_DIR),
     schemaExists: fs.existsSync(SCHEMA_PATH),
     apiIndexExists: fs.existsSync(API_INDEX_PATH),
     git: getGitInfo(),
     frameworksDir: REFERENCE_DATA_DIR,
     frameworksDirExists: fs.existsSync(REFERENCE_DATA_DIR),
-    frameworksVersions: {
-      etom: listVersions('etom'),
-      sid: listVersions('sid'),
-      functionalFramework: listVersions('functionalFramework'),
-    },
+    frameworksVersions: currentFrameworksVersions(),
     sharedParent: repoParent,
   });
 });
@@ -242,6 +298,21 @@ function parseSwaggerEventName(doc) {
   return title ? title.replace(/\s+/g, '') : null;
 }
 
+// Event names available for publishedEvents/subscribedEvents `resources` -
+// these come from the swagger's own `/listener/{eventName}` paths (the
+// notification-callback convention TMF APIs use), e.g.
+// "/listener/catalogCreateEvent" -> "catalogCreateEvent". This is the same
+// name hand-written specs list under `resources`, so no guessing/renaming.
+function parseSwaggerEvents(doc) {
+  const paths = doc?.paths || {};
+  const events = new Set();
+  for (const rawPath of Object.keys(paths)) {
+    const m = rawPath.match(/^\/listener\/([^/]+)$/i);
+    if (m) events.add(m[1]);
+  }
+  return [...events].sort();
+}
+
 app.get('/api/api-resources', async (req, res) => {
   const swaggerUrl = req.query.swagger;
   if (!swaggerUrl || !/^https:\/\//.test(swaggerUrl)) {
@@ -256,7 +327,11 @@ app.get('/api/api-resources', async (req, res) => {
       return res.status(502).json({ ok: false, error: `Fetching swagger failed: HTTP ${response.status}` });
     }
     const doc = await response.json();
-    const payload = { resources: parseSwaggerResources(doc), eventName: parseSwaggerEventName(doc) };
+    const payload = {
+      resources: parseSwaggerResources(doc),
+      eventName: parseSwaggerEventName(doc),
+      events: parseSwaggerEvents(doc),
+    };
     swaggerResourceCache.set(swaggerUrl, payload);
     res.json({ ok: true, ...payload });
   } catch (err) {
@@ -298,6 +373,67 @@ app.get('/api/sid', (req, res) => {
   res.json(loadReferenceJson('sid', req.query.version) || { version: null, domains: [], abesByDomain: {}, besByDomainAbe: {} });
 });
 app.get('/api/sid/versions', (req, res) => res.json({ versions: listVersions('sid') }));
+
+function currentFrameworksVersions() {
+  return {
+    etom: listVersions('etom'),
+    sid: listVersions('sid'),
+    functionalFramework: listVersions('functionalFramework'),
+  };
+}
+
+// scripts/parse_reference_data.py lives in the app's own code, not in the
+// frameworks data directory (which should only ever hold spreadsheets and
+// generated JSON), so it has to be located relative to the running server
+// the same way resolvePublicDir() locates the built client: a "scripts"
+// folder shipped next to the packaged exe, next to this script, or the
+// monorepo dev layout, whichever actually has the file.
+function resolveParseScriptPath() {
+  const scriptDir = path.dirname(process.argv[1] || '.');
+  const candidates = [
+    process.pkg ? path.join(path.dirname(process.execPath), 'scripts', 'parse_reference_data.py') : null,
+    path.join(scriptDir, 'scripts', 'parse_reference_data.py'),
+    path.join(scriptDir, '..', 'scripts', 'parse_reference_data.py'), // dev: index.js run from server/
+    path.join(scriptDir, '..', '..', 'scripts', 'parse_reference_data.py'), // dev: bundle.cjs run from server/dist/
+  ].filter(Boolean);
+  return candidates.find((p) => fs.existsSync(p)) || null;
+}
+
+// Re-runs scripts/parse_reference_data.py against whatever GB921*/GB922*/
+// GB1033* spreadsheets currently sit in the frameworks directory, so a new
+// release's spreadsheet can be picked up from the UI instead of a terminal.
+// Tries `python` then `python3` on PATH, since which one exists varies by
+// machine/OS.
+app.post('/api/frameworks/regenerate', async (req, res) => {
+  const scriptPath = resolveParseScriptPath();
+  if (!scriptPath) {
+    return res.status(404).json({ ok: false, error: 'Could not locate scripts/parse_reference_data.py alongside the running server.' });
+  }
+
+  for (const command of ['python', 'python3']) {
+    try {
+      const { stdout, stderr } = await execFileAsync(command, [scriptPath, REFERENCE_DATA_DIR], {
+        cwd: REFERENCE_DATA_DIR,
+        timeout: 120000,
+      });
+      return res.json({
+        ok: true,
+        pythonCommand: command,
+        output: [stdout, stderr].filter(Boolean).join('\n').trim(),
+        frameworksVersions: currentFrameworksVersions(),
+      });
+    } catch (err) {
+      if (err.code === 'ENOENT') continue; // this command isn't on PATH - try the next one
+      return res.status(500).json({
+        ok: false,
+        pythonCommand: command,
+        error: err.message,
+        output: [err.stdout, err.stderr].filter(Boolean).join('\n').trim(),
+      });
+    }
+  }
+  res.status(500).json({ ok: false, error: 'Could not find a Python interpreter on PATH (tried "python" and "python3"). Install Python 3 with openpyxl and ensure it\'s on PATH.' });
+});
 
 // Lightweight list of existing components, for the "edit existing" picker.
 app.get('/api/components', (req, res) => {
@@ -421,7 +557,7 @@ if (PUBLIC_DIR) {
 const PORT = process.env.PORT || 4310;
 app.listen(PORT, () => {
   console.log(`component-spec-editor server listening on http://localhost:${PORT}`);
-  console.log(`REPO_ROOT=${REPO_ROOT}`);
+  console.log(`REPO_ROOT=${REPO_ROOT} (source: ${REPO_ROOT_SOURCE})`);
   console.log(PUBLIC_DIR ? `Serving built client from ${PUBLIC_DIR}` : 'No built client found - API only (run the Vite dev server separately).');
 
   // Packaged exe: open the app in the user's default browser automatically,

@@ -1,10 +1,3 @@
-function linesOf(text) {
-  return (text || '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
-}
-
 function verbsOf(text) {
   return (text || '')
     .split(',')
@@ -58,7 +51,7 @@ function buildEventEntry(entry, kind) {
   if (kind === 'subscribed' && entry.callback) out['call-back'] = entry.callback.trim();
   if (entry.implementation) out.implementation = entry.implementation.trim();
   if (entry.port) out.port = Number(entry.port);
-  const resources = linesOf(entry.resourcesText);
+  const resources = (entry.resources || []).map((r) => r.trim()).filter(Boolean);
   if (resources.length) out.resources = resources;
   if (entry.specification) out.specification = entry.specification.trim();
   if (entry.apiType) out.apiType = entry.apiType.trim();
