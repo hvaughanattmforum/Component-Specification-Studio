@@ -53,38 +53,28 @@ const API_INDEX_PATH = path.join(REPO_ROOT, 'apiIndex.json');
 
 // Reference taxonomy catalogs (eTOM/SID/Functional Framework), pre-converted
 // from the official TMForum GB921/GB922/GB1033 Excel exports by
-// scripts/parse_reference_data.py. The directory itself lives as a sibling of
-// REPO_ROOT (both under one workspace directory) rather than inside the app
-// itself, so a fresh checkout of this app can point at anyone's existing
-// workspace layout instead of shipping the (large, license-bearing) source
-// spreadsheets.
-const REFERENCE_DATA_DIR = process.env.FRAMEWORKS_DIR
-  || path.join(path.dirname(REPO_ROOT), 'frameworks');
-
-// Enforced by design: REPO_ROOT and the frameworks directory must be
-// siblings under one shared parent, so the whole workspace can be relocated
-// (or handed to a teammate) by moving one folder instead of re-pointing two
-// independent absolute paths.
-const repoParent = path.dirname(REPO_ROOT);
-const frameworksParent = path.dirname(REFERENCE_DATA_DIR);
-if (repoParent !== frameworksParent) {
-  console.error([
-    '',
-    'Configuration error: REPO_ROOT and the frameworks directory must share a parent directory.',
-    `  REPO_ROOT:              ${REPO_ROOT}`,
-    `  REPO_ROOT parent:       ${repoParent}`,
-    `  frameworks directory:   ${REFERENCE_DATA_DIR}`,
-    `  frameworks dir parent:  ${frameworksParent}`,
-    '',
-    'Place the component spec repo checkout and the frameworks/ folder (eTOM, SID, Functional',
-    'Framework source data) side by side under one workspace directory, e.g.:',
-    '  <workspace>/TMForum-ODA-Component-Specification-v1.1.0/',
-    '  <workspace>/frameworks/',
-    'or set the REPO_ROOT and FRAMEWORKS_DIR env vars so both resolve under the same parent.',
-    '',
-  ].join('\n'));
-  process.exit(1);
+// scripts/parse_reference_data.py. This directory is configured fully
+// independently of REPO_ROOT (env var > saved config, set via the Setup
+// Instructions tab > a bundled "frameworks" folder shipped next to the
+// packaged exe, if present > the legacy sibling-of-REPO_ROOT default) - the
+// two no longer need to share a parent directory, so the repo checkout and
+// the frameworks data can live anywhere on disk independently.
+function resolveDefaultFrameworksDir() {
+  const scriptDir = path.dirname(process.argv[1] || '.');
+  const candidates = [
+    process.pkg ? path.join(path.dirname(process.execPath), 'frameworks') : null,
+    path.join(scriptDir, 'frameworks'),
+    path.join(scriptDir, '..', 'frameworks'), // dev: index.js run from server/
+    path.join(scriptDir, '..', '..', 'frameworks'), // dev: bundle.cjs run from server/dist/
+  ].filter(Boolean);
+  return candidates.find((p) => fs.existsSync(p)) || path.join(path.dirname(REPO_ROOT), 'frameworks');
 }
+
+const REFERENCE_DATA_DIR = process.env.FRAMEWORKS_DIR
+  || savedConfig.frameworksDir
+  || resolveDefaultFrameworksDir();
+
+const FRAMEWORKS_DIR_SOURCE = process.env.FRAMEWORKS_DIR ? 'env' : (savedConfig.frameworksDir ? 'config' : 'default');
 
 // Frameworks catalogs are versioned in their filename (etom_v26.0.json,
 // sid_v26.0.json, ...), produced by scripts/parse_reference_data.py -
@@ -192,22 +182,36 @@ app.get('/api/config', (req, res) => {
   res.json({
     repoRoot: REPO_ROOT,
     source: REPO_ROOT_SOURCE,
-    configPath: CONFIG_PATH,
     envOverrideActive: Boolean(process.env.REPO_ROOT),
+    frameworksDir: REFERENCE_DATA_DIR,
+    frameworksDirSource: FRAMEWORKS_DIR_SOURCE,
+    frameworksDirEnvOverrideActive: Boolean(process.env.FRAMEWORKS_DIR),
+    configPath: CONFIG_PATH,
   });
 });
 
 app.post('/api/config', (req, res) => {
-  const { repoRoot } = req.body;
-  if (!repoRoot || typeof repoRoot !== 'string' || !path.isAbsolute(repoRoot)) {
+  const { repoRoot, frameworksDir } = req.body;
+  if (repoRoot !== undefined && (typeof repoRoot !== 'string' || !path.isAbsolute(repoRoot))) {
     return res.status(400).json({ ok: false, error: 'repoRoot must be an absolute path' });
   }
+  if (frameworksDir !== undefined && (typeof frameworksDir !== 'string' || !path.isAbsolute(frameworksDir))) {
+    return res.status(400).json({ ok: false, error: 'frameworksDir must be an absolute path' });
+  }
+  if (repoRoot === undefined && frameworksDir === undefined) {
+    return res.status(400).json({ ok: false, error: 'repoRoot or frameworksDir is required' });
+  }
   try {
-    writeConfigFile({ repoRoot });
+    const partial = {};
+    if (repoRoot !== undefined) partial.repoRoot = repoRoot;
+    if (frameworksDir !== undefined) partial.frameworksDir = frameworksDir;
+    writeConfigFile(partial);
     res.json({
       ok: true,
-      repoRoot,
+      repoRoot: repoRoot !== undefined ? repoRoot : REPO_ROOT,
+      frameworksDir: frameworksDir !== undefined ? frameworksDir : REFERENCE_DATA_DIR,
       envOverrideActive: Boolean(process.env.REPO_ROOT),
+      frameworksDirEnvOverrideActive: Boolean(process.env.FRAMEWORKS_DIR),
       restartRequired: true,
     });
   } catch (err) {
@@ -225,9 +229,9 @@ app.get('/api/health', (req, res) => {
     apiIndexExists: fs.existsSync(API_INDEX_PATH),
     git: getGitInfo(),
     frameworksDir: REFERENCE_DATA_DIR,
+    frameworksDirSource: FRAMEWORKS_DIR_SOURCE,
     frameworksDirExists: fs.existsSync(REFERENCE_DATA_DIR),
     frameworksVersions: currentFrameworksVersions(),
-    sharedParent: repoParent,
   });
 });
 

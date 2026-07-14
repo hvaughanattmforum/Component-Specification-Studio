@@ -11,10 +11,11 @@ async function json(res) {
 export const api = {
   health: () => fetch(`${BASE}/health`).then(json),
   getConfig: () => fetch(`${BASE}/config`).then(json),
-  setConfig: (repoRoot) => fetch(`${BASE}/config`, {
+  // partial: { repoRoot? , frameworksDir? } - either or both may be set independently.
+  setConfig: (partial) => fetch(`${BASE}/config`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repoRoot }),
+    body: JSON.stringify(partial),
   }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   functionalBlocks: () => fetch(`${BASE}/functional-blocks`).then(json),
   apis: () => fetch(`${BASE}/apis`).then(json),

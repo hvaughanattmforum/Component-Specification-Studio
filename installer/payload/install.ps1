@@ -17,6 +17,17 @@ $ScriptsDir = Join-Path $InstallDir 'scripts'
 if (Test-Path $ScriptsDir) { Remove-Item -Recurse -Force $ScriptsDir }
 Expand-Archive -Path (Join-Path $SourceDir 'scripts.zip') -DestinationPath $ScriptsDir -Force
 
+# frameworks.zip is optional - only present if the build machine had frameworks
+# catalog JSON available to bundle. Without it, the app still works; it just
+# has no default catalogs until FRAMEWORKS_DIR is pointed somewhere or the
+# catalogs are regenerated from the Setup page.
+$FrameworksZip = Join-Path $SourceDir 'frameworks.zip'
+if (Test-Path $FrameworksZip) {
+  $FrameworksDir = Join-Path $InstallDir 'frameworks'
+  if (Test-Path $FrameworksDir) { Remove-Item -Recurse -Force $FrameworksDir }
+  Expand-Archive -Path $FrameworksZip -DestinationPath $FrameworksDir -Force
+}
+
 # Start Menu shortcut
 $StartMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 $ShortcutPath = Join-Path $StartMenuDir "$AppName.lnk"

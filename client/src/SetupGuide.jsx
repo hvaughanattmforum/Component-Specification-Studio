@@ -5,27 +5,32 @@ function StatusDot({ ok }) {
   return <span style={{ color: ok ? 'var(--ok)' : 'var(--danger)' }}>{ok ? '✓' : '✗'}</span>;
 }
 
-function RepoRootConfig({ repoInfo }) {
-  const [config, setConfig] = useState(null);
-  const [value, setValue] = useState('');
+// Generic "configure one absolute path independently" card, used for both
+// repoRoot and frameworksDir - they're unrelated settings (no shared-parent
+// requirement between them), each with its own env var, saved-config key,
+// and precedence, so they're rendered as two independent instances of this
+// component rather than one combined form.
+function PathConfig({ label, fieldName, envVarName, placeholder, config, onSaved }) {
+  const [value, setValue] = useState(config?.[fieldName] || '');
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null); // { ok, error? }
 
   useEffect(() => {
-    api.getConfig().then((c) => {
-      setConfig(c);
-      setValue(c.repoRoot || '');
-    }).catch(() => {});
-  }, []);
+    setValue(config?.[fieldName] || '');
+  }, [config?.[fieldName]]);
+
+  const sourceKey = fieldName === 'repoRoot' ? 'source' : 'frameworksDirSource';
+  const envOverrideKey = fieldName === 'repoRoot' ? 'envOverrideActive' : 'frameworksDirEnvOverrideActive';
+  const source = config?.[sourceKey];
 
   const save = async () => {
     setSaving(true);
     setResult(null);
     try {
-      const res = await api.setConfig(value.trim());
+      const res = await api.setConfig({ [fieldName]: value.trim() });
       if (res.ok) {
         setResult({ ok: true });
-        setConfig((c) => ({ ...c, repoRoot: res.repoRoot, source: 'config' }));
+        onSaved?.(res[fieldName]);
       } else {
         setResult({ ok: false, error: res.error || 'Save failed' });
       }
@@ -38,17 +43,17 @@ function RepoRootConfig({ repoInfo }) {
 
   return (
     <div className="field">
-      <label>Repo root configuration</label>
+      <label>{label}</label>
       {!config && <div className="hint">Loading...</div>}
       {config && (
         <div className="card">
-          <div>Currently using: <code>{repoInfo?.repoRoot || config.repoRoot}</code></div>
+          <div>Currently using: <code>{config[fieldName]}</code></div>
           <div className="hint" style={{ marginTop: 4 }}>
-            Source: {config.source === 'env' ? 'REPO_ROOT environment variable' : config.source === 'config' ? 'saved setting' : 'built-in default'}
+            Source: {source === 'env' ? `${envVarName} environment variable` : source === 'config' ? 'saved setting' : 'built-in default'}
           </div>
-          {config.envOverrideActive && (
+          {config[envOverrideKey] && (
             <div className="hint" style={{ marginTop: 4, color: 'var(--danger)' }}>
-              The REPO_ROOT environment variable is set and always takes priority over this setting.
+              The {envVarName} environment variable is set and always takes priority over this setting.
               Unset it to let the value below take effect.
             </div>
           )}
@@ -57,7 +62,7 @@ function RepoRootConfig({ repoInfo }) {
               type="text"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="C:\path\to\TMForum-ODA-Component-Specification checkout"
+              placeholder={placeholder}
               style={{ flex: 1 }}
             />
             <button onClick={save} disabled={saving || !value.trim()}>
@@ -119,7 +124,11 @@ function FrameworksRegenerate({ onRegenerated }) {
 }
 
 export default function SetupGuide({ repoInfo, onFrameworksRegenerated }) {
-  const parent = repoInfo?.sharedParent;
+  const [config, setConfig] = useState(null);
+
+  useEffect(() => {
+    api.getConfig().then(setConfig).catch(() => {});
+  }, []);
 
   return (
     <div className="panel">
@@ -142,29 +151,44 @@ export default function SetupGuide({ repoInfo, onFrameworksRegenerated }) {
             <div><StatusDot ok={repoInfo.frameworksVersions?.etom?.length} /> eTOM versions: {repoInfo.frameworksVersions?.etom?.join(', ') || 'none'}</div>
             <div><StatusDot ok={repoInfo.frameworksVersions?.sid?.length} /> SID versions: {repoInfo.frameworksVersions?.sid?.join(', ') || 'none'}</div>
             <div><StatusDot ok={repoInfo.frameworksVersions?.functionalFramework?.length} /> Functional Framework versions: {repoInfo.frameworksVersions?.functionalFramework?.join(', ') || 'none'}</div>
-            <div style={{ marginTop: 8 }}>Shared parent directory: <code>{parent}</code></div>
           </div>
         )}
       </div>
 
-      <RepoRootConfig repoInfo={repoInfo} />
+      <PathConfig
+        label="Repo root configuration"
+        fieldName="repoRoot"
+        envVarName="REPO_ROOT"
+        placeholder="C:\path\to\TMForum-ODA-Component-Specification checkout"
+        config={config}
+        onSaved={(repoRoot) => setConfig((c) => ({ ...c, repoRoot, source: 'config' }))}
+      />
+
+      <PathConfig
+        label="Frameworks directory configuration"
+        fieldName="frameworksDir"
+        envVarName="FRAMEWORKS_DIR"
+        placeholder="C:\path\to\frameworks"
+        config={config}
+        onSaved={(frameworksDir) => setConfig((c) => ({ ...c, frameworksDir, frameworksDirSource: 'config' }))}
+      />
 
       <div className="field">
-        <label>Required directory layout</label>
+        <label>Directory layout</label>
         <p className="hint">
-          The repo checkout and the frameworks data directory must be siblings under one shared parent -
-          this is enforced at server startup, not just a convention. Moving the whole workspace only
-          means moving one parent folder, instead of re-pointing two independent absolute paths.
+          The repo checkout and the frameworks data directory are configured completely independently -
+          each has its own env var, saved setting, and default (see the two cards above) - and can live
+          anywhere on disk, including under unrelated parent folders.
         </p>
-        <pre className="yaml-preview">{`<workspace>/
-  TMForum-ODA-Component-Specification-v1.1.0/   <- REPO_ROOT (the spec repo checkout)
-  frameworks/                                    <- eTOM / SID / Functional Framework data ONLY
-    GB921_Business_Process_Framework_Processes_Excel_v26.0.xlsx
-    GB922_Information_Framework_SID_Excel_v26.0.xlsx
-    GB1033F_Functional_Framework_Excel_Format_v26.0.xlsx
-    etom_v26.0.json               <- generated; version comes from the xlsx filename
-    sid_v26.0.json                <- multiple versions can coexist (etom_v27.0.json, ...)
-    functionalFramework_v26.0.json <- the server serves the latest version by default`}</pre>
+        <pre className="yaml-preview">{`TMForum-ODA-Component-Specification-v1.1.0/   <- REPO_ROOT (the spec repo checkout)
+
+frameworks/                                    <- FRAMEWORKS_DIR: eTOM / SID / Functional Framework data ONLY
+  GB921_Business_Process_Framework_Processes_Excel_v26.0.xlsx
+  GB922_Information_Framework_SID_Excel_v26.0.xlsx
+  GB1033F_Functional_Framework_Excel_Format_v26.0.xlsx
+  etom_v26.0.json               <- generated; version comes from the xlsx filename
+  sid_v26.0.json                <- multiple versions can coexist (etom_v27.0.json, ...)
+  functionalFramework_v26.0.json <- the server serves the latest version by default`}</pre>
         <p className="hint">
           The converter script itself (<code>parse_reference_data.py</code>) lives in this app's own
           <code>scripts/</code> folder, not in frameworks/ - that directory should only ever hold the
@@ -176,10 +200,9 @@ export default function SetupGuide({ repoInfo, onFrameworksRegenerated }) {
         <label>Environment variables</label>
         <ul className="errors-list">
           <li><code>REPO_ROOT</code> - path to the component spec repo checkout. Precedence: this env var, then the saved setting from the "Repo root configuration" card above, then the built-in default.</li>
-          <li><code>FRAMEWORKS_DIR</code> - path to the frameworks data directory. Defaults to a <code>frameworks</code> folder next to <code>REPO_ROOT</code>.</li>
+          <li><code>FRAMEWORKS_DIR</code> - path to the frameworks data directory. Precedence: this env var, then the saved setting from the "Frameworks directory configuration" card above, then a bundled <code>frameworks</code> folder shipped next to the app (if present), then the legacy default next to <code>REPO_ROOT</code>.</li>
           <li><code>PORT</code> - server port (default 4310).</li>
         </ul>
-        <p className="hint">Both directories must resolve to the same parent, or the server refuses to start and prints exactly which paths mismatched.</p>
       </div>
 
       <div className="field">
@@ -217,12 +240,15 @@ cd frameworks && python ../component-spec-editor/scripts/parse_reference_data.py
         <pre className="yaml-preview">{`cd component-spec-editor
 npm install
 npm run dist
-# produces dist/ComponentSpecStudio.exe + dist/public/ + dist/scripts/`}</pre>
+# produces dist/ComponentSpecStudio.exe + dist/public/ + dist/scripts/ + dist/frameworks/`}</pre>
         <p className="hint">
           Distribute <code>ComponentSpecStudio.exe</code> together with its sibling <code>public/</code>
-          (the built UI) and <code>scripts/</code> (frameworks converter) folders - all three must sit in the
-          same directory. REPO_ROOT and FRAMEWORKS_DIR still apply the same way as in dev (env vars, or the
-          defaults if run on this machine).
+          (the built UI), <code>scripts/</code> (frameworks converter) and <code>frameworks/</code>
+          (pre-generated eTOM/SID/Functional Framework catalog JSON, so the app works out of the box with
+          no setup) folders - all four must sit in the same directory. The source <code>.xlsx</code>
+          spreadsheets are never bundled (they're large and license-bearing) - only the converted JSON
+          catalogs are. REPO_ROOT and FRAMEWORKS_DIR still apply the same way as in dev (env vars, the saved
+          setting from the Setup page, or the bundled <code>frameworks/</code> folder as the default).
         </p>
       </div>
 
@@ -238,13 +264,16 @@ npm run dist
 cp dist/ComponentSpecStudio.exe installer/payload/
 powershell -Command "Compress-Archive -Path dist/public/* -DestinationPath installer/payload/public.zip -Force"
 powershell -Command "Compress-Archive -Path dist/scripts/* -DestinationPath installer/payload/scripts.zip -Force"
+powershell -Command "Compress-Archive -Path dist/frameworks/* -DestinationPath installer/payload/frameworks.zip -Force"
 cd installer
 npx pkg . --targets node22-win-x64 --output ../dist/ComponentSpecStudio-Setup.exe
 # produces dist/ComponentSpecStudio-Setup.exe - just run it`}</pre>
         <p className="hint">
           The setup exe embeds the app + install/uninstall PowerShell scripts, unpacks them to a temp
-          folder, and runs the installer. To uninstall: Settings → Apps → "ODA Component Specification
-          Studio" → Uninstall (or run <code>uninstall.ps1</code> from the install folder directly).
+          folder, and runs the installer. <code>frameworks.zip</code> is optional - only include it if
+          <code>dist/frameworks/</code> has catalog JSON to bundle. To uninstall: Settings → Apps →
+          "ODA Component Specification Studio" → Uninstall (or run <code>uninstall.ps1</code> from the
+          install folder directly).
         </p>
       </div>
     </div>

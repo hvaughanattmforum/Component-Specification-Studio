@@ -19,8 +19,12 @@ console.log('Extracting installer files...');
 fs.rmSync(tempDir, { recursive: true, force: true });
 fs.mkdirSync(tempDir, { recursive: true });
 
-for (const file of ['ComponentSpecStudio.exe', 'public.zip', 'scripts.zip', 'install.ps1', 'uninstall.ps1']) {
-  fs.copyFileSync(path.join(payloadDir, file), path.join(tempDir, file));
+// frameworks.zip is optional - a build run without a source frameworks
+// directory available produces no dist/frameworks/, so nothing to bundle.
+for (const file of ['ComponentSpecStudio.exe', 'public.zip', 'scripts.zip', 'install.ps1', 'uninstall.ps1', 'frameworks.zip']) {
+  const src = path.join(payloadDir, file);
+  if (file === 'frameworks.zip' && !fs.existsSync(src)) continue;
+  fs.copyFileSync(src, path.join(tempDir, file));
 }
 
 console.log('Running installer...\n');
