@@ -182,15 +182,6 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
       <label>eTOM&ndash;SID links <span className="hint">{data.heading}{data.justCreated ? ' — file just created' : ''}</span></label>
       <p className="hint">These links are to ensure that the SID eTOM links diagram is drawn correctly in the specification document, and do not form part of the specification as such.</p>
 
-      <div className="field">
-        <label>Notes (before table) <span className="hint">optional</span></label>
-        <textarea
-          value={data.notesBefore}
-          onChange={(e) => setData({ ...data, notesBefore: e.target.value })}
-          placeholder="e.g. Source: transcribed from the original PDF's eTOM L2 - SID ABEs links diagram..."
-        />
-      </div>
-
       <div className="card-list">
         {data.links.map((row, i) => {
           const isDuplicate = duplicateRows.has(i);
@@ -248,21 +239,11 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
         {data.links.length === 0 && (
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
             <button type="button" onClick={() => save(null)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-            <span className="hint">No link rows yet - saves the notes below on their own.</span>
+            <span className="hint">No link rows yet.</span>
             {activeRow === null && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
             {activeRow === null && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
           </div>
         )}
-      </div>
-
-      <div className="field" style={{ marginTop: 16 }}>
-        <label>Notes (after table) <span className="hint">optional</span></label>
-        <textarea
-          value={data.notesAfter}
-          onChange={(e) => setData({ ...data, notesAfter: e.target.value })}
-          placeholder="e.g. caveats about how the diagram should render these links..."
-        />
-        <p className="hint">Also saved by any Save button above - the whole file is written together.</p>
       </div>
     </div>
   );
