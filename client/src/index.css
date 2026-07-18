@@ -149,7 +149,10 @@ textarea {
 .card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 14px;
+  /* extra top padding reserves space for .card-remove, which is absolutely
+     positioned and would otherwise sit on top of the card's first row of
+     fields instead of pushing them down */
+  padding: 52px 14px 14px;
   background: var(--bg);
   position: relative;
 }
