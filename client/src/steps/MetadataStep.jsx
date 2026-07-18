@@ -25,41 +25,65 @@ function pairKey(row) {
   return `${etom}||${sid}`;
 }
 
-// Constrains a YAML eTOM/YAML SID cell to a multi-select of exactly the
-// entries already chosen in this component's eTOMs/SIDs pickers above,
-// instead of free text - those are the only values that can validly appear
-// here, so typing them by hand only invites typos and drift from the
-// pickers. Any previously-stored value that isn't in that list still shows
-// (as a warning) rather than silently vanishing, but is dropped the next
-// time this specific field is changed, since at that point the multi-select
-// becomes the source of truth for it.
+// Constrains a YAML eTOM/YAML SID cell to entries already chosen in this
+// component's eTOMs/SIDs pickers above, instead of free text - those are
+// the only values that can validly appear here, so typing them by hand only
+// invites typos and drift from the pickers. Picked one at a time (a single
+// dropdown + Add), matching the add/remove list pattern used by the eTOMs/
+// SIDs pickers themselves, rather than a multi-select listbox that hides
+// its own multi-pick gesture (ctrl/cmd-click) from anyone who doesn't
+// already know it. A previously-stored value that isn't in the current
+// options still shows, flagged, and can be removed individually.
 function MultiSelectField({ label, hint, options, valueString, onChange }) {
   const selected = parseMulti(valueString);
-  const unmatched = selected.filter((v) => !options.includes(v));
+  const available = options.filter((o) => !selected.includes(o));
+  const [pending, setPending] = useState('');
+
+  const add = () => {
+    if (!pending) return;
+    onChange([...selected, pending].join('; '));
+    setPending('');
+  };
+  const remove = (v) => onChange(selected.filter((s) => s !== v).join('; '));
 
   return (
     <div className="field">
       <label>{label} <span className="hint">{hint}</span></label>
-      {options.length === 0 ? (
-        <p className="hint">Nothing selected in the form above yet.</p>
-      ) : (
-        <>
+      {available.length > 0 && (
+        <div className="row" style={{ marginBottom: 6 }}>
           <select
-            multiple
-            size={Math.max(2, Math.min(5, options.length))}
-            value={selected}
-            onChange={(e) => onChange([...e.target.selectedOptions].map((o) => o.value).join('; '))}
-            style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}
+            value={pending}
+            onChange={(e) => setPending(e.target.value)}
+            style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}
           >
-            {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            <option value="">Choose one to add...</option>
+            {available.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
           </select>
-          <p className="hint">Ctrl/Cmd-click to select more than one.</p>
-        </>
+          <button type="button" onClick={add} disabled={!pending}>+ Add</button>
+        </div>
       )}
-      {unmatched.length > 0 && (
-        <p className="hint" style={{ color: 'var(--danger)' }}>
-          Not in the current selection above (will be dropped if this field is changed): {unmatched.join('; ')}
-        </p>
+      {available.length === 0 && options.length > 0 && (
+        <p className="hint">All entries from the form above are already added.</p>
+      )}
+      {options.length === 0 && (
+        <p className="hint">Nothing selected in the form above yet.</p>
+      )}
+      {selected.length > 0 ? (
+        <div className="card-list">
+          {selected.map((v) => {
+            const isUnmatched = !options.includes(v);
+            return (
+              <div key={v} className="row" style={{ alignItems: 'center' }}>
+                <span style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', color: isUnmatched ? 'var(--danger)' : 'inherit' }}>
+                  {v}{isUnmatched ? ' — not in current selection above' : ''}
+                </span>
+                <button type="button" className="ghost" onClick={() => remove(v)}>Remove</button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="hint">None selected.</p>
       )}
     </div>
   );
@@ -73,6 +97,11 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
   const [data, setData] = useState(null); // { exists, heading, notesBefore, notesAfter, links }
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null); // { ok, error? }
+  // Which card's Save button triggered the in-flight/last save, so the
+  // Saving.../Saved/error feedback shows right on that card - there's one
+  // file (and one save call) for the whole component, but each card gets
+  // its own visible Save button and its own feedback next to it.
+  const [activeRow, setActiveRow] = useState(null);
 
   useEffect(() => {
     setData(null);
@@ -123,8 +152,9 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
     if (firstIdx !== i) { duplicateRows.add(i); duplicateRows.add(firstIdx); }
   });
 
-  const save = async () => {
+  const save = async (rowIndex) => {
     if (duplicateRows.size > 0) return;
+    setActiveRow(rowIndex ?? null);
     setSaving(true);
     setResult(null);
     try {
@@ -150,6 +180,7 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
   return (
     <div className="field">
       <label>eTOM&ndash;SID links <span className="hint">{data.heading}{data.justCreated ? ' — file just created' : ''}</span></label>
+      <p className="hint">These links are to ensure that the SID eTOM links diagram is drawn correctly in the specification document, and do not form part of the specification as such.</p>
 
       <div className="field">
         <label>Notes (before table) <span className="hint">optional</span></label>
@@ -163,6 +194,7 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
       <div className="card-list">
         {data.links.map((row, i) => {
           const isDuplicate = duplicateRows.has(i);
+          const isActive = activeRow === i;
           return (
             <div className="card" key={i} style={isDuplicate ? { borderColor: 'var(--danger)' } : undefined}>
               <button type="button" className="card-remove ghost" onClick={() => removeRow(i)}>Remove</button>
@@ -203,22 +235,27 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
                   onChange={(v) => updateRow(i, 'yamlSID', v)}
                 />
               </div>
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button type="button" onClick={() => save(i)} disabled={saving || duplicateRows.size > 0}>
+                  {saving && isActive ? 'Saving...' : 'Save'}
+                </button>
+                {isActive && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
+                {isActive && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
+                {isDuplicate && <span className="hint" style={{ color: 'var(--danger)' }}>Resolve the duplicate pair above to save.</span>}
+              </div>
             </div>
           );
         })}
         <button type="button" className="ghost" onClick={addRow}>+ Add link</button>
+        {data.links.length === 0 && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button type="button" onClick={() => save(null)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+            <span className="hint">No link rows yet - saves the notes below on their own.</span>
+            {activeRow === null && result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved.</span>}
+            {activeRow === null && result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
+          </div>
+        )}
       </div>
-
-      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button type="button" onClick={save} disabled={saving || duplicateRows.size > 0}>{saving ? 'Saving...' : 'Save links'}</button>
-        {result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved to {result.path}.</span>}
-        {result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
-      </div>
-      {duplicateRows.size > 0 && (
-        <div className="hint" style={{ marginTop: 6, color: 'var(--danger)' }}>
-          Resolve the duplicate eTOM/SID pair(s) highlighted above before saving.
-        </div>
-      )}
 
       <div className="field" style={{ marginTop: 16 }}>
         <label>Notes (after table) <span className="hint">optional</span></label>
@@ -227,7 +264,7 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
           onChange={(e) => setData({ ...data, notesAfter: e.target.value })}
           placeholder="e.g. caveats about how the diagram should render these links..."
         />
-        <p className="hint">Also saved by the button above.</p>
+        <p className="hint">Also saved by any Save button above - the whole file is written together.</p>
       </div>
     </div>
   );
