@@ -219,22 +219,20 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
                   </select>
                 </div>
               </div>
-              <div className="row">
-                <MultiSelectField
-                  label="YAML eTOM"
-                  hint="from the eTOMs picker above"
-                  options={eTOMs}
-                  valueString={row.yamlETOM}
-                  onChange={(v) => updateRow(i, 'yamlETOM', v)}
-                />
-                <MultiSelectField
-                  label="YAML SID"
-                  hint="from the SIDs picker above"
-                  options={SIDs}
-                  valueString={row.yamlSID}
-                  onChange={(v) => updateRow(i, 'yamlSID', v)}
-                />
-              </div>
+              <MultiSelectField
+                label="YAML eTOM"
+                hint="from the eTOMs picker above"
+                options={eTOMs}
+                valueString={row.yamlETOM}
+                onChange={(v) => updateRow(i, 'yamlETOM', v)}
+              />
+              <MultiSelectField
+                label="YAML SID"
+                hint="from the SIDs picker above"
+                options={SIDs}
+                valueString={row.yamlSID}
+                onChange={(v) => updateRow(i, 'yamlSID', v)}
+              />
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button type="button" onClick={() => save(i)} disabled={saving || duplicateRows.size > 0}>
                   {saving && isActive ? 'Saving...' : 'Save'}
