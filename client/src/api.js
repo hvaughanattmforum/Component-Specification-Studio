@@ -22,6 +22,12 @@ export const api = {
   nextId: () => fetch(`${BASE}/next-id`).then(json),
   components: () => fetch(`${BASE}/components`).then(json),
   component: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}`).then(json),
+  componentLinks: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/links`).then(json),
+  saveComponentLinks: (dirName, payload) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   // kind: 'etom' | 'sid' | 'functional-framework'. version omitted -> server's latest.
   frameworkCatalog: (kind, version) => fetch(`${BASE}/${kind}${version ? `?version=${encodeURIComponent(version)}` : ''}`).then(json),
   frameworkVersions: (kind) => fetch(`${BASE}/${kind}/versions`).then(json),

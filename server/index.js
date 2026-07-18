@@ -461,6 +461,118 @@ app.get('/api/components', (req, res) => {
   res.json({ components });
 });
 
+// eTOM-SID link tables (specifications/<dirName>/Diagrams/<ID>_eTOM_SID_Links.md)
+// document which eTOM activities connect to which SID ABEs, transcribed by
+// hand from each component's original spec PDF - the source of truth for
+// the "eTOM L2 - SID ABEs links" diagram. They're plain GFM tables with a
+// title and free-text provenance notes before/after, so parsing has to
+// locate the table by its separator row (`|---|---|...`) rather than by
+// exact header wording, and cell values that contain a literal `|` (the
+// "YAML eTOM"/"YAML SID" columns pack multiple pipe-delimited identifier
+// parts into one cell) escape it as `\|` to avoid being read as a column
+// break.
+const LINKS_COLUMNS = ['eTOM activity', 'SID ABE', 'Direction', 'YAML eTOM', 'YAML SID'];
+const LINKS_FIELDS = ['etomActivity', 'sidABE', 'direction', 'yamlETOM', 'yamlSID'];
+
+function linksFilePath(dirName) {
+  const id = dirName.split('-')[0];
+  return path.join(SPECIFICATIONS_DIR, dirName, 'Diagrams', `${id}_eTOM_SID_Links.md`);
+}
+
+function splitTableRow(line) {
+  const PLACEHOLDER = ' ';
+  let trimmed = line.trim().replace(/\\\|/g, PLACEHOLDER);
+  if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+  return trimmed.split('|').map((cell) => cell.trim().split(PLACEHOLDER).join('|'));
+}
+
+function parseLinksMarkdown(text, id) {
+  const lines = text.split(/\r?\n/);
+  const sepIdx = lines.findIndex((l) => /^\s*\|[\s:-]*-[\s:|-]*\|\s*$/.test(l));
+
+  let heading = `${id} eTOM–SID Links`;
+  let headingLineIdx = -1;
+  const firstNonBlank = lines.findIndex((l) => l.trim() !== '');
+  if (firstNonBlank !== -1 && lines[firstNonBlank].trim().startsWith('#')) {
+    heading = lines[firstNonBlank].trim().replace(/^#+\s*/, '');
+    headingLineIdx = firstNonBlank;
+  }
+
+  if (sepIdx === -1 || sepIdx === 0) {
+    // No table found - treat the whole file (minus any heading line) as "before" notes.
+    const notesBefore = lines.slice(headingLineIdx + 1).join('\n').trim();
+    return { heading, notesBefore, notesAfter: '', links: [] };
+  }
+
+  const headerRowIdx = sepIdx - 1;
+  const notesBefore = lines.slice(headingLineIdx + 1, headerRowIdx).join('\n').trim();
+
+  let dataEndIdx = sepIdx + 1;
+  while (dataEndIdx < lines.length && lines[dataEndIdx].trim().startsWith('|')) dataEndIdx++;
+
+  const links = lines.slice(sepIdx + 1, dataEndIdx)
+    .map((line) => splitTableRow(line))
+    .filter((cells) => cells.some((c) => c !== ''))
+    .map((cells) => Object.fromEntries(LINKS_FIELDS.map((f, i) => [f, cells[i] || ''])));
+
+  const notesAfter = lines.slice(dataEndIdx).join('\n').trim();
+
+  return { heading, notesBefore, notesAfter, links };
+}
+
+function renderLinksMarkdown({ heading, notesBefore, notesAfter, links }) {
+  const escapeCell = (v) => (v || '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  const parts = [`# ${heading}`, ''];
+  if (notesBefore?.trim()) parts.push(notesBefore.trim(), '');
+  parts.push(`| ${LINKS_COLUMNS.join(' | ')} |`);
+  parts.push(`|${LINKS_COLUMNS.map(() => '---').join('|')}|`);
+  for (const row of links) {
+    parts.push(`| ${LINKS_FIELDS.map((f) => escapeCell(row[f])).join(' | ')} |`);
+  }
+  if (notesAfter?.trim()) parts.push('', notesAfter.trim());
+  parts.push('');
+  return parts.join('\n');
+}
+
+app.get('/api/component/:dirName/links', (req, res) => {
+  const { dirName } = req.params;
+  if (!/^[\w.\-]+$/.test(dirName)) {
+    return res.status(400).json({ ok: false, error: 'Invalid dirName' });
+  }
+  const filePath = linksFilePath(dirName);
+  const id = dirName.split('-')[0];
+  if (!fs.existsSync(filePath)) {
+    return res.json({ ok: true, exists: false, heading: `${id} eTOM–SID Links`, notesBefore: '', notesAfter: '', links: [] });
+  }
+  try {
+    const parsed = parseLinksMarkdown(fs.readFileSync(filePath, 'utf8'), id);
+    res.json({ ok: true, exists: true, ...parsed });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/component/:dirName/links', (req, res) => {
+  const { dirName } = req.params;
+  if (!/^[\w.\-]+$/.test(dirName)) {
+    return res.status(400).json({ ok: false, error: 'Invalid dirName' });
+  }
+  const { heading, notesBefore, notesAfter, links } = req.body;
+  if (!Array.isArray(links)) {
+    return res.status(400).json({ ok: false, error: 'links must be an array' });
+  }
+  try {
+    const filePath = linksFilePath(dirName);
+    const id = dirName.split('-')[0];
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, renderLinksMarkdown({ heading: heading || `${id} eTOM–SID Links`, notesBefore, notesAfter, links }), 'utf8');
+    res.json({ ok: true, path: filePath });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Full parsed YAML for one existing component, to prefill the wizard for editing.
 app.get('/api/component/:dirName', (req, res) => {
   const { dirName } = req.params;

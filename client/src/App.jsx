@@ -133,6 +133,7 @@ export default function App() {
               setState={setState}
               functionalBlocks={functionalBlocks}
               locked={mode === 'edit'}
+              dirName={originalLocation?.dirName}
             />
           )}
           {step === 1 && (

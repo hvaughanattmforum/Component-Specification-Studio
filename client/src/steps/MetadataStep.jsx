@@ -1,6 +1,140 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from '../api.js';
 import TaxonomyPicker from './TaxonomyPicker.jsx';
 import SidPicker from './SidPicker.jsx';
+
+const DIRECTIONS = ['bidirectional', 'activity consumes', 'activity produces'];
+const BLANK_LINK = { etomActivity: '', sidABE: '', direction: 'bidirectional', yamlETOM: '', yamlSID: '' };
+
+// Editor for specifications/<dirName>/Diagrams/<ID>_eTOM_SID_Links.md - the
+// hand-transcribed table backing each component's "eTOM L2 - SID ABEs links"
+// diagram. Only meaningful once a component directory exists on disk, so
+// this is hidden while creating a brand-new (not yet saved) component.
+function LinksEditor({ dirName }) {
+  const [data, setData] = useState(null); // { exists, heading, notesBefore, notesAfter, links }
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState(null); // { ok, error? }
+
+  useEffect(() => {
+    setData(null);
+    setResult(null);
+    if (!dirName) return;
+    api.componentLinks(dirName).then(setData).catch((err) => setResult({ ok: false, error: err.message }));
+  }, [dirName]);
+
+  if (!dirName) {
+    return (
+      <div className="field">
+        <label>eTOM&ndash;SID links</label>
+        <p className="hint">Available once this component has been saved at least once.</p>
+      </div>
+    );
+  }
+
+  if (!data) return <div className="field"><label>eTOM&ndash;SID links</label><div className="hint">Loading...</div></div>;
+
+  const updateRow = (i, field, value) => {
+    const links = data.links.slice();
+    links[i] = { ...links[i], [field]: value };
+    setData({ ...data, links });
+  };
+  const addRow = () => setData({ ...data, links: [...data.links, { ...BLANK_LINK }] });
+  const removeRow = (i) => setData({ ...data, links: data.links.filter((_, idx) => idx !== i) });
+
+  const save = async () => {
+    setSaving(true);
+    setResult(null);
+    try {
+      const res = await api.saveComponentLinks(dirName, {
+        heading: data.heading,
+        notesBefore: data.notesBefore,
+        notesAfter: data.notesAfter,
+        links: data.links,
+      });
+      if (res.ok) {
+        setResult({ ok: true, path: res.path });
+        setData({ ...data, exists: true });
+      } else {
+        setResult({ ok: false, error: res.error || 'Save failed' });
+      }
+    } catch (err) {
+      setResult({ ok: false, error: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="field">
+      <label>eTOM&ndash;SID links <span className="hint">{data.heading}{!data.exists ? ' — not yet created' : ''}</span></label>
+
+      <div className="field">
+        <label>Notes (before table) <span className="hint">optional</span></label>
+        <textarea
+          value={data.notesBefore}
+          onChange={(e) => setData({ ...data, notesBefore: e.target.value })}
+          placeholder="e.g. Source: transcribed from the original PDF's eTOM L2 - SID ABEs links diagram..."
+        />
+      </div>
+
+      <div className="card-list">
+        {data.links.map((row, i) => (
+          <div className="card" key={i}>
+            <button type="button" className="card-remove ghost" onClick={() => removeRow(i)}>Remove</button>
+            <div className="row">
+              <div className="field">
+                <label>eTOM activity</label>
+                <input type="text" value={row.etomActivity} onChange={(e) => updateRow(i, 'etomActivity', e.target.value)} />
+              </div>
+              <div className="field">
+                <label>SID ABE</label>
+                <input type="text" value={row.sidABE} onChange={(e) => updateRow(i, 'sidABE', e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Direction</label>
+                <input
+                  type="text"
+                  list={`links-direction-options-${i}`}
+                  value={row.direction}
+                  onChange={(e) => updateRow(i, 'direction', e.target.value)}
+                />
+                <datalist id={`links-direction-options-${i}`}>
+                  {DIRECTIONS.map((d) => <option key={d} value={d} />)}
+                </datalist>
+              </div>
+            </div>
+            <div className="row">
+              <div className="field">
+                <label>YAML eTOM <span className="hint">pipe-delimited, matches componentMetadata.eTOMs</span></label>
+                <input type="text" value={row.yamlETOM} onChange={(e) => updateRow(i, 'yamlETOM', e.target.value)} />
+              </div>
+              <div className="field">
+                <label>YAML SID <span className="hint">pipe-delimited, matches componentMetadata.SIDs</span></label>
+                <input type="text" value={row.yamlSID} onChange={(e) => updateRow(i, 'yamlSID', e.target.value)} />
+              </div>
+            </div>
+          </div>
+        ))}
+        <button type="button" className="ghost" onClick={addRow}>+ Add link</button>
+      </div>
+
+      <div className="field">
+        <label>Notes (after table) <span className="hint">optional</span></label>
+        <textarea
+          value={data.notesAfter}
+          onChange={(e) => setData({ ...data, notesAfter: e.target.value })}
+          placeholder="e.g. caveats about how the diagram should render these links..."
+        />
+      </div>
+
+      <div style={{ marginTop: 10 }}>
+        <button type="button" onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save links'}</button>
+      </div>
+      {result?.ok && <div className="hint" style={{ marginTop: 6, color: 'var(--ok)' }}>Saved to {result.path}.</div>}
+      {result?.error && <div className="hint" style={{ marginTop: 6, color: 'var(--danger)' }}>{result.error}</div>}
+    </div>
+  );
+}
 
 function ContactList({ label, items, onChange }) {
   const update = (i, field, value) => {
@@ -40,7 +174,7 @@ function ContactList({ label, items, onChange }) {
   );
 }
 
-export default function MetadataStep({ state, setState, functionalBlocks, locked }) {
+export default function MetadataStep({ state, setState, functionalBlocks, locked, dirName }) {
   const set = (field) => (e) => setState({ ...state, [field]: e.target.value });
 
   return (
@@ -115,6 +249,8 @@ export default function MetadataStep({ state, setState, functionalBlocks, locked
         value={state.SIDs}
         onChange={(v) => setState({ ...state, SIDs: v })}
       />
+
+      <LinksEditor dirName={dirName} />
     </div>
   );
 }
