@@ -209,25 +209,26 @@ function LinksEditor({ dirName, eTOMs, SIDs }) {
         <button type="button" className="ghost" onClick={addRow}>+ Add link</button>
       </div>
 
-      <div className="field">
-        <label>Notes (after table) <span className="hint">optional</span></label>
-        <textarea
-          value={data.notesAfter}
-          onChange={(e) => setData({ ...data, notesAfter: e.target.value })}
-          placeholder="e.g. caveats about how the diagram should render these links..."
-        />
-      </div>
-
-      <div style={{ marginTop: 10 }}>
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
         <button type="button" onClick={save} disabled={saving || duplicateRows.size > 0}>{saving ? 'Saving...' : 'Save links'}</button>
+        {result?.ok && <span className="hint" style={{ color: 'var(--ok)' }}>Saved to {result.path}.</span>}
+        {result?.error && <span className="hint" style={{ color: 'var(--danger)' }}>{result.error}</span>}
       </div>
       {duplicateRows.size > 0 && (
         <div className="hint" style={{ marginTop: 6, color: 'var(--danger)' }}>
           Resolve the duplicate eTOM/SID pair(s) highlighted above before saving.
         </div>
       )}
-      {result?.ok && <div className="hint" style={{ marginTop: 6, color: 'var(--ok)' }}>Saved to {result.path}.</div>}
-      {result?.error && <div className="hint" style={{ marginTop: 6, color: 'var(--danger)' }}>{result.error}</div>}
+
+      <div className="field" style={{ marginTop: 16 }}>
+        <label>Notes (after table) <span className="hint">optional</span></label>
+        <textarea
+          value={data.notesAfter}
+          onChange={(e) => setData({ ...data, notesAfter: e.target.value })}
+          placeholder="e.g. caveats about how the diagram should render these links..."
+        />
+        <p className="hint">Also saved by the button above.</p>
+      </div>
     </div>
   );
 }
