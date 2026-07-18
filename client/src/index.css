@@ -136,6 +136,11 @@ textarea {
 
 .row {
   display: flex;
+  /* Without this, the default stretch alignment sizes a bare button/etc.
+     to the row's cross-axis size, which includes .field's margin-bottom -
+     so a button sitting next to a select/input (not wrapped in .field) came
+     out visibly taller than it, instead of matching its actual height. */
+  align-items: center;
   gap: 12px;
 }
 .row > .field { flex: 1; }
@@ -170,7 +175,15 @@ button {
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--fg);
-  padding: 7px 14px;
+  /* matches input/select/textarea's 8px vertical padding so a button
+     sitting next to one in a row renders at the same height */
+  padding: 10px 14px;
+  /* a flex sibling with .field's flex:1 otherwise squeezes the button
+     below its own text width, wrapping it to two lines and inflating its
+     height well past its neighbor's - e.g. "Remove version" next to a
+     Version input */
+  flex-shrink: 0;
+  white-space: nowrap;
   cursor: pointer;
 }
 
