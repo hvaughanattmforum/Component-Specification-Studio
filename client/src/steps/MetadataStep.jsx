@@ -67,8 +67,8 @@ export default function MetadataStep({ state, setState, functionalBlocks, locked
           <input type="text" value={state.version} onChange={set('version')} placeholder="1.0.0" />
         </div>
         <div className="field">
-          <label>Status</label>
-          <select value={state.status} onChange={set('status')}>
+          <label>Status <span className="hint">not editable</span></label>
+          <select value={state.status} disabled>
             <option value="roadmap">roadmap</option>
             <option value="preview">preview</option>
             <option value="production">production</option>
