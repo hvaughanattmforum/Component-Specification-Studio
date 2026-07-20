@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 import StartScreen from './steps/StartScreen.jsx';
 import MetadataStep from './steps/MetadataStep.jsx';
+import LinksStep from './steps/LinksStep.jsx';
 import ApiListStep from './steps/ApiListStep.jsx';
 import EventsStep from './steps/EventsStep.jsx';
 import ReviewStep from './steps/ReviewStep.jsx';
+import SupplementStep from './steps/SupplementStep.jsx';
 import SetupGuide from './SetupGuide.jsx';
 import { stateFromComponent } from './parseComponent.js';
 
-const STEPS = ['Metadata', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save'];
+const STEPS = ['Metadata', 'Links', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Supplement'];
 
 function blankState() {
   return {
@@ -133,10 +135,12 @@ export default function App() {
               setState={setState}
               functionalBlocks={functionalBlocks}
               locked={mode === 'edit'}
-              dirName={originalLocation?.dirName}
             />
           )}
           {step === 1 && (
+            <LinksStep dirName={originalLocation?.dirName} eTOMs={state.eTOMs} SIDs={state.SIDs} />
+          )}
+          {step === 2 && (
             <ApiListStep
               title="Exposed APIs"
               requiredMeaning="Mandatory for Conformance"
@@ -145,7 +149,7 @@ export default function App() {
               apiCatalog={apiCatalog}
             />
           )}
-          {step === 2 && (
+          {step === 3 && (
             <ApiListStep
               title="Dependent APIs"
               requiredMeaning="Mandatory Dependency"
@@ -154,11 +158,14 @@ export default function App() {
               apiCatalog={apiCatalog}
             />
           )}
-          {step === 3 && (
+          {step === 4 && (
             <EventsStep state={state} setState={setState} apiCatalog={apiCatalog} />
           )}
-          {step === 4 && (
+          {step === 5 && (
             <ReviewStep state={state} original={original} originalLocation={originalLocation} mode={mode} />
+          )}
+          {step === 6 && (
+            <SupplementStep dirName={originalLocation?.dirName} />
           )}
 
           <div className="nav-buttons">

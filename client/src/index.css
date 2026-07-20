@@ -99,6 +99,26 @@ h1 {
   margin-bottom: 20px;
 }
 
+/* Pins this one panel (the Links tab) to a fixed white/light look rather
+   than the theme-aware --panel/--bg variables, since the request was for a
+   literal white background - re-declaring the whole token set (not just
+   background/color) keeps every descendant that reads var(--muted),
+   var(--border), etc. readable, regardless of the user's OS dark-mode
+   setting. */
+.panel-white {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --border: #d8d8d8;
+  --panel: #f7f5f9;
+  --accent: #7b2d8e;
+  --accent-fg: #ffffff;
+  --danger: #b3261e;
+  --ok: #1e7b34;
+  background: var(--bg);
+  color: var(--fg);
+}
+
 .field {
   margin-bottom: 14px;
 }

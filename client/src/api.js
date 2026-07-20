@@ -28,6 +28,12 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
+  componentSupplement: (dirName) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`).then(json),
+  saveComponentSupplement: (dirName, content) => fetch(`${BASE}/component/${encodeURIComponent(dirName)}/supplement`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  }).then((res) => res.json().then((body) => ({ status: res.status, ...body }))),
   // kind: 'etom' | 'sid' | 'functional-framework'. version omitted -> server's latest.
   frameworkCatalog: (kind, version) => fetch(`${BASE}/${kind}${version ? `?version=${encodeURIComponent(version)}` : ''}`).then(json),
   frameworkVersions: (kind) => fetch(`${BASE}/${kind}/versions`).then(json),
