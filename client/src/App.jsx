@@ -6,10 +6,11 @@ import LinksStep from './steps/LinksStep.jsx';
 import ApiListStep from './steps/ApiListStep.jsx';
 import EventsStep from './steps/EventsStep.jsx';
 import ReviewStep from './steps/ReviewStep.jsx';
+import SupplementStep from './steps/SupplementStep.jsx';
 import SetupGuide from './SetupGuide.jsx';
 import { stateFromComponent } from './parseComponent.js';
 
-const STEPS = ['Metadata', 'Links', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save'];
+const STEPS = ['Metadata', 'Links', 'Exposed APIs', 'Dependent APIs', 'Events', 'Review & Save', 'Supplement'];
 
 function blankState() {
   return {
@@ -162,6 +163,9 @@ export default function App() {
           )}
           {step === 5 && (
             <ReviewStep state={state} original={original} originalLocation={originalLocation} mode={mode} />
+          )}
+          {step === 6 && (
+            <SupplementStep dirName={originalLocation?.dirName} />
           )}
 
           <div className="nav-buttons">

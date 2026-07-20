@@ -573,6 +573,130 @@ app.post('/api/component/:dirName/links', (req, res) => {
   }
 });
 
+// The <ID>_<Name>_Supplement.md file (specifications/<dirName>/Diagrams/) is
+// the hand-curated tail of a component's specification - Jira references,
+// further resources, and the administrative appendix (document/release
+// history, acknowledgements). It's free-form prose and tables whose section
+// numbering isn't consistent across components (some nest everything under
+// one "Jira References" heading, others use flat top-level sections per
+// framework, some have no section 5 content at all), so unlike the eTOM-SID
+// links file this is edited as raw markdown rather than parsed into fields -
+// any structural assumption strict enough to parse it would misparse a good
+// fraction of the real files. The component-specification-markdown skill
+// treats this file as a one-time-seeded, hand-maintained input it only ever
+// reads (never regenerates), so editing it here is safe and matches how the
+// rest of the toolchain already treats it.
+//
+// The filename doesn't follow a clean mechanical rule in practice (e.g.
+// "and" is sometimes kept lowercase and un-split, a few components' files
+// are named shorter than their full componentMetadata.name), so an existing
+// file is located by pattern rather than by deriving its exact name -
+// that derivation is only used as a default when creating a brand new one.
+const SUPPLEMENT_TEMPLATE = `### 5.2. Jira References
+
+#### 5.2.1. eTOM
+- <https://projects.tmforum.org/jira/browse/XXX-000> short description of the issue
+
+#### 5.2.3. Functional Framework
+- <https://projects.tmforum.org/jira/browse/XXX-000> short description of the issue
+
+#### 5.2.4. API
+- TMFxxx - API Name: short description of the issue
+  - <https://projects.tmforum.org/jira/browse/XXX-000>
+
+### 5.3. Further resources
+
+This component is involved in the following use cases described in <name and reference of guide>.
+
+## 6. Administrative Appendix
+
+### 6.1. Document History
+
+#### 6.1.1. Version History
+
+| Version Number | Date | Modified by | Description of changes |
+|---|---|---|---|
+| 1.0.0 | DD-Mon-YYYY | Author Name | Initial publication |
+
+#### 6.1.2. Release History
+
+| Release Status | Date Modified | Modified by | Description of changes |
+|---|---|---|---|
+| Pre-production | DD-Mon-YYYY | Author Name | Initial release |
+
+### 6.2. Acknowledgements
+
+This document was prepared by the members of the TM Forum ODA Components & Canvas team.
+
+| Team Member | Company | Role |
+|---|---|---|
+| Author Name | Company | Editor |
+`;
+
+function pascalToUnderscore(name) {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim().replace(/\s+/g, '_');
+}
+
+function defaultSupplementFileName(dirName) {
+  const id = dirName.split('-')[0];
+  const match = listComponentYamlFiles().find((f) => f.dirName === dirName);
+  let name = dirName.split('-').slice(1).join('-');
+  if (match) {
+    try {
+      const doc = yaml.load(fs.readFileSync(match.yamlPath, 'utf8'));
+      name = doc?.spec?.componentMetadata?.name || name;
+    } catch {
+      // fall through to the dirName-derived name
+    }
+  }
+  return `${id}_${pascalToUnderscore(name)}_Supplement.md`;
+}
+
+// Finds the existing file by pattern (never by deriving its name - see
+// comment above) so a legacy non-standard filename is still found rather
+// than treated as missing.
+function findSupplementFile(dirName) {
+  const diagramsDir = path.join(SPECIFICATIONS_DIR, dirName, 'Diagrams');
+  if (!fs.existsSync(diagramsDir)) return null;
+  const match = fs.readdirSync(diagramsDir).find((f) => f.endsWith('_Supplement.md'));
+  return match ? path.join(diagramsDir, match) : null;
+}
+
+app.get('/api/component/:dirName/supplement', (req, res) => {
+  const { dirName } = req.params;
+  if (!/^[\w.\-]+$/.test(dirName)) {
+    return res.status(400).json({ ok: false, error: 'Invalid dirName' });
+  }
+  const filePath = findSupplementFile(dirName);
+  if (!filePath) {
+    return res.json({ ok: true, exists: false, path: null, content: '' });
+  }
+  try {
+    res.json({ ok: true, exists: true, path: filePath, content: fs.readFileSync(filePath, 'utf8') });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/component/:dirName/supplement', (req, res) => {
+  const { dirName } = req.params;
+  if (!/^[\w.\-]+$/.test(dirName)) {
+    return res.status(400).json({ ok: false, error: 'Invalid dirName' });
+  }
+  const { content } = req.body;
+  if (typeof content !== 'string') {
+    return res.status(400).json({ ok: false, error: 'content must be a string' });
+  }
+  try {
+    const filePath = findSupplementFile(dirName) || path.join(SPECIFICATIONS_DIR, dirName, 'Diagrams', defaultSupplementFileName(dirName));
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, 'utf8');
+    res.json({ ok: true, path: filePath });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Full parsed YAML for one existing component, to prefill the wizard for editing.
 app.get('/api/component/:dirName', (req, res) => {
   const { dirName } = req.params;
